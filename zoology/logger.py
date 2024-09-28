@@ -27,6 +27,7 @@ class WandbLogger:
         if self.no_logger:
             return
         self.run.config.update(config.model_dump(), allow_val_change=True)
+        self.run.config.update({"num_kv_pairs": config.data.train_configs[0].num_kv_pairs})
 
     def log_model(
         self, 

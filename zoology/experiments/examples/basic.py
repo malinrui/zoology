@@ -21,7 +21,9 @@ config = TrainConfig(
         sequence_mixer=ModuleConfig(
             name="zoology.mixers.attention.MHA",
             kwargs={"dropout": 0.1, "num_heads": 1}
-        )
+        ),
+        block_type="MambaBlock",
+        name="mamba-1",
     ),
     
 )
