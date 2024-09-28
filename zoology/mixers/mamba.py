@@ -165,7 +165,7 @@ class Mamba(nn.Module):
                     rearrange(self.conv1d.weight, "d 1 w -> d w"),
                     self.conv1d.bias,
                     None,
-                    self.activation,
+                    activation=self.activation,
                 )
 
             # We're careful here about the layout, to avoid extra transposes.
