@@ -268,6 +268,19 @@ def MambaInit(
     rescale_prenorm_residual=True,
     n_residuals_per_layer=1,  # Change to 2 if we have MLP
 ):
+    """
+    `MambaInit` 函数的作用是初始化神经网络模块的权重和偏置。它特别关注以下几点：
+
+1. **线性层和嵌入层的初始化**：
+   - 对于 `nn.Linear` 层，如果存在偏置且未标记为 `_no_reinit`，则将其初始化为零。
+   - 对于 `nn.Embedding` 层，将其权重初始化为正态分布，标准差为 `initializer_range`。
+
+2. **重新缩放预归一化残差**：
+   - 如果 `rescale_prenorm_residual` 为 `True`，则根据 OpenAI GPT-2 论文中的方案重新初始化选定的权重。
+   - 具体来说，对于 `out_proj.weight` 或 `fc2.weight`，使用 `kaiming_uniform_` 初始化，并按 `1/sqrt(2 * n_layer)` 缩放权重。
+
+这个函数确保了模型在训练开始时的权重和偏置处于合理的初始状态，从而有助于模型的稳定训练和收敛。
+    """
     
     if isinstance(module, nn.Linear):
         if module.bias is not None:

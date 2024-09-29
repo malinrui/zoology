@@ -88,7 +88,8 @@ class DataConfig(BaseConfig):
     force_cache: bool = False 
 
 class ModelConfig(BaseConfig):
-    sequence_mixer: ModuleConfig = None
+    # sequence_mixer: ModuleConfig = None
+    sequence_mixer: List[ModuleConfig]
     state_mixer: ModuleConfig = ModuleConfig(
         name="zoology.mixers.mlp.MLP", 
         kwargs={"hidden_mult": 4}

@@ -296,7 +296,7 @@ class TransformerBlock(nn.Module):
     def __init__(self, config: ModelConfig, layer_idx: int):
         super().__init__()
 
-        self.sequence_mixer = config.sequence_mixer.instantiate(
+        self.sequence_mixer = config.sequence_mixer[layer_idx].instantiate(
             d_model=config.d_model,
             layer_idx=layer_idx,
         )
@@ -341,6 +341,7 @@ class LMBackbone(nn.Module):
             block_cls = MambaBlock
         else:
             raise ValueError(f"Unknown block type: {config.block_type}, expected 'TransformerBlock' or 'MambaBlock'")
+
         self.layers = nn.ModuleList(
             [
                 block_cls(config=config, layer_idx=i)
