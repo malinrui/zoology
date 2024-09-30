@@ -110,6 +110,10 @@ class ModelConfig(BaseConfig):
     block_type: str = "TransformerBlock"
     name: str = "default"
 
+    # init_with_kqvo_dict: dict = None
+
+
+
 class LoggerConfig(BaseConfig):
 
     project_name: str = None
@@ -136,3 +140,9 @@ class TrainConfig(BaseConfig):
     launch_id: str = None
     sweep_id: str = None
     run_id: str = "default"
+
+    save_model: bool = True
+    load_from_pretrained_path: str = None
+
+    mix_with_mamba: bool = False
+    mamba_layers: List[int] = None

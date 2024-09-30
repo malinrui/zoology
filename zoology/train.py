@@ -14,6 +14,7 @@ from einops import rearrange
 
 from zoology.data.utils import prepare_data
 from zoology.config import TrainConfig
+from zoology.mixers.mamba import Mamba
 from zoology.model import LanguageModel
 from zoology.logger import WandbLogger
 from zoology.utils import set_determinism
@@ -33,6 +34,9 @@ class Trainer:
         slice_keys: List[str] = [],
         device: Union[str, int] = "cuda",
         logger: WandbLogger = None,
+        load_from_pretrained_path: str = None,
+        mix_with_mamba: bool = False,
+        mamba_layers: List[int] = None,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -46,6 +50,29 @@ class Trainer:
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.slice_keys = slice_keys
+
+        if load_from_pretrained_path is not None:
+            self.model.load_state_dict(torch.load(load_from_pretrained_path))
+            print(f"******************* Model loaded from {load_from_pretrained_path} *******************")
+
+        if mix_with_mamba:
+            print("******************* Mixing with Mamba *******************")
+            for layer_idx in mamba_layers:
+                layer_encoder = Mamba(
+                    128
+                )
+                self.model.backbone.layers[layer_idx].sequence_mixer = layer_encoder
+            # self.model.backbone.layers[0].sequence_mixer = Mamba(128)
+            print("******************* Model mixed with Mamba *******************")
+            print("######################################################")
+            print("######################################################")
+
+            print("model NOW:", self.model)
+
+            print("######################################################")
+            print("######################################################")
+
+
 
     def train_epoch(self, epoch_idx: int):
         self.model.train()
@@ -152,6 +179,11 @@ class Trainer:
         self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=self.max_epochs, eta_min=0.0
         )
+
+        print("Testing the raw model in the first epoch:")
+        self.test(-1)
+        print("Now training...")
+
         for epoch_idx in range(self.max_epochs):
             self.train_epoch(epoch_idx)
             metrics = self.test(epoch_idx)
@@ -196,6 +228,14 @@ def train(config: TrainConfig):
 
     train_dataloader, test_dataloader = prepare_data(config.data)
     model = LanguageModel(config=config.model)
+
+    print("######################################################")
+    print("######################################################")
+
+    print("model:", model)
+
+    print("######################################################")
+    print("######################################################")
     
     logger.log_model(model, config=config)
 
@@ -211,11 +251,20 @@ def train(config: TrainConfig):
         slice_keys=config.slice_keys,
         device="cuda" if torch.cuda.is_available() else "cpu",
         logger=logger,
+        load_from_pretrained_path=config.load_from_pretrained_path,
+        mix_with_mamba=config.mix_with_mamba,
+        mamba_layers=config.mamba_layers,
     )
     task.fit()
+
+    if config.save_model:
+        save_path = f"trained_models/{config.run_id}.pth"
+        torch.save(model.state_dict(), save_path)
+        print(f"Model saved to {save_path}")
+
     logger.finish()
 
 
 if __name__ == "__main__":
     config = TrainConfig.from_cli()
-    train()
+    train(config)
