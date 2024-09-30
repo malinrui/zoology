@@ -38,6 +38,7 @@ class Trainer:
         mix_with_mamba: bool = False,
         mamba_layers: List[int] = None,
         init_from_attention_weights: bool = False,
+        freeze_attn: bool = False,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -104,6 +105,8 @@ class Trainer:
                     layer_encoder.out_proj.load_state_dict(
                         attn_layer.out_proj.state_dict()
                     )
+
+                    print('@@@@@@@layer ' + str(layer_idx) + ' init_from_attention_weights!@@@@@@@')
                     # # keep dtype to be the same
                     # layer_encoder.mlp = mamba_encoder.mlp.to(dtype)
                     # layer_encoder.input_layernorm = mamba_encoder.input_layernorm.to(dtype)
@@ -122,6 +125,13 @@ class Trainer:
 
             if init_from_attention_weights:
                 print("@@@@@@@@@@@@@@@@@@@@@@ Initializing Mamba with attention weights @@@@@@@@@@@@@@@@@@@@@@")
+
+            if freeze_attn:
+                print("$$$$$$$$$$$$$$$$$$$$$$ Freezing attention weights $$$$$$$$$$$$$$$$$$$$$$")
+                for name, param in self.model.named_parameters():
+                    # print(name)
+                    if f"sequence_mixer" not in name:
+                        param.requires_grad = False
 
 
 
@@ -224,7 +234,8 @@ class Trainer:
         self.model.to("cuda")
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
-            self.model.parameters(),
+            filter(lambda p: p.requires_grad, self.model.parameters()), #一点加速 27iter/s -> 32iter/s
+            # self.model.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
         )
@@ -307,6 +318,7 @@ def train(config: TrainConfig):
         mix_with_mamba=config.mix_with_mamba,
         mamba_layers=config.mamba_layers,
         init_from_attention_weights=config.init_from_attention_weights,
+        freeze_attn=config.freeze_attn,
     )
     task.fit()
 

@@ -141,9 +141,11 @@ class TrainConfig(BaseConfig):
     sweep_id: str = None
     run_id: str = "default"
 
-    save_model: bool = True
+    save_model: bool = False
     load_from_pretrained_path: str = None
 
     mix_with_mamba: bool = False
     mamba_layers: List[int] = None
     init_from_attention_weights: bool = False
+
+    freeze_attn: bool = False
