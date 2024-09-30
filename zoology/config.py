@@ -146,3 +146,4 @@ class TrainConfig(BaseConfig):
 
     mix_with_mamba: bool = False
     mamba_layers: List[int] = None
+    init_from_attention_weights: bool = False

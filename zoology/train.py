@@ -14,7 +14,7 @@ from einops import rearrange
 
 from zoology.data.utils import prepare_data
 from zoology.config import TrainConfig
-from zoology.mixers.mamba import Mamba
+from zoology.mixers.mamba import Mamba, AnotherMamba
 from zoology.model import LanguageModel
 from zoology.logger import WandbLogger
 from zoology.utils import set_determinism
@@ -37,6 +37,7 @@ class Trainer:
         load_from_pretrained_path: str = None,
         mix_with_mamba: bool = False,
         mamba_layers: List[int] = None,
+        init_from_attention_weights: bool = False,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -58,9 +59,56 @@ class Trainer:
         if mix_with_mamba:
             print("******************* Mixing with Mamba *******************")
             for layer_idx in mamba_layers:
-                layer_encoder = Mamba(
-                    128
+                # layer_encoder = Mamba(
+                #     128
+                # )
+                layer_encoder = AnotherMamba(
+                    128,
+                    128,
+                    128,
                 )
+
+                if init_from_attention_weights:
+                    attn_layer = self.model.backbone.layers[layer_idx].sequence_mixer
+                    # dtype = attn_layer.mlp[0].weight.dtype
+
+                    # layer_encoder.mlp.load_state_dict(
+                    #     attn_layer.mlp.state_dict()
+                    # )
+                    # layer_encoder.input_layernorm.load_state_dict(
+                    #     attn_layer.input_layernorm.state_dict()
+                    # )
+                    # layer_encoder.post_attention_layernorm.load_state_dict(
+                    #     attn_layer.post_attention_layernorm.state_dict()
+                    # )
+
+                    print("attn_layer.Wqkv.state_dict().shape:", attn_layer.Wqkv.state_dict()['weight'].shape)
+                    layer_encoder.in_proj_x.load_state_dict(
+                        {
+                            'weight': attn_layer.Wqkv.state_dict()['weight'][2*128:3*128, :],
+                            'bias': attn_layer.Wqkv.state_dict()['bias'][2*128:3*128],
+                        }
+                    )
+                    layer_encoder.B_proj.load_state_dict(
+                        {
+                            'weight': attn_layer.Wqkv.state_dict()['weight'][128:2*128, :],
+                            # 'bias': attn_layer.Wqkv.state_dict()['bias'][128:2*128],
+                        }
+                    )
+                    layer_encoder.C_proj.load_state_dict(
+                        {
+                            'weight': attn_layer.Wqkv.state_dict()['weight'][0:128, :],
+                            # 'bias': attn_layer.Wqkv.state_dict()['bias'][0:128],
+                        }
+                    )
+                    layer_encoder.out_proj.load_state_dict(
+                        attn_layer.out_proj.state_dict()
+                    )
+                    # # keep dtype to be the same
+                    # layer_encoder.mlp = mamba_encoder.mlp.to(dtype)
+                    # layer_encoder.input_layernorm = mamba_encoder.input_layernorm.to(dtype)
+                    # layer_encoder.post_attention_layernorm = mamba_encoder.post_attention_layernorm.to(dtype)
+
                 self.model.backbone.layers[layer_idx].sequence_mixer = layer_encoder
             # self.model.backbone.layers[0].sequence_mixer = Mamba(128)
             print("******************* Model mixed with Mamba *******************")
@@ -71,6 +119,10 @@ class Trainer:
 
             print("######################################################")
             print("######################################################")
+
+            if init_from_attention_weights:
+                print("@@@@@@@@@@@@@@@@@@@@@@ Initializing Mamba with attention weights @@@@@@@@@@@@@@@@@@@@@@")
+
 
 
 
@@ -254,6 +306,7 @@ def train(config: TrainConfig):
         load_from_pretrained_path=config.load_from_pretrained_path,
         mix_with_mamba=config.mix_with_mamba,
         mamba_layers=config.mamba_layers,
+        init_from_attention_weights=config.init_from_attention_weights,
     )
     task.fit()
 
