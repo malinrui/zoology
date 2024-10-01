@@ -178,25 +178,28 @@ class Trainer:
                 teacher_logits = self.teacher_model(inputs)
 
             teacher_ce_loss = self.loss_fn(
-                rearrange(student_logits, "... c -> (...) c"), true_target.flatten()
+                rearrange(teacher_logits, "... c -> (...) c"), true_target.flatten()
             )
 
             # 选择teacher的logits中最大者作为target，直接使target.shape [64, 256, 512] - >[64, 256]
-            targets = torch.argmax(teacher_logits, dim=-1)
+            pseudo_targets = torch.argmax(teacher_logits, dim=-1)
 
             # print('targets shape:', targets.shape)
 
             main_loss = self.loss_fn(
-                rearrange(student_logits, "... c -> (...) c"), targets.flatten()
+                rearrange(student_logits, "... c -> (...) c"), pseudo_targets.flatten()
             )
 
 
 
-            targets = F.softmax(teacher_logits, dim=-1)
-            targets = targets.to(self.device)
+            # targets = F.softmax(teacher_logits, dim=-1)
+            # targets = targets.to(self.device)
 
-            kl_loss = F.kl_div(F.log_softmax(
-                student_logits, dim=-1), targets, reduction='batchmean')
+            kl_loss = F.kl_div(
+                F.log_softmax(student_logits, dim=-1),
+                F.softmax(teacher_logits, dim=-1),
+                reduction='batchmean'
+            )
 
             # print('student_logits shape:', student_logits.shape)
             # print('teacher_logits shape:', teacher_logits.shape)
@@ -223,7 +226,7 @@ class Trainer:
             self.optimizer.step()
 
             # logging and printing
-            iterator.set_postfix({"loss": loss.item(), 'true_target_loss': true_target_loss.item()})
+            iterator.set_postfix({"loss": loss.item(), 'true_target_loss': true_target_loss.item(), 'teacher_ce_loss': teacher_ce_loss.item()})
             self.logger.log(
                 {
                     "train/loss": loss,
@@ -280,8 +283,11 @@ class Trainer:
                 }
             )
 
-    def test(self, epoch_idx: int):
+    def test(self, epoch_idx: int, teacher=False):
         self.model.eval()
+
+        if teacher:
+            self.teacher_model.eval()
 
         test_loss = 0
         # all_preds = []
@@ -295,7 +301,10 @@ class Trainer:
         ) as iterator:
             for inputs, targets, slices in self.test_dataloader:
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
-                logits = self.model(inputs)
+                if teacher:
+                    logits = self.teacher_model(inputs)
+                else:
+                    logits = self.model(inputs)
 
                 loss = self.loss_fn(
                     rearrange(logits, "... c -> (...) c"), targets.flatten()
@@ -327,15 +336,16 @@ class Trainer:
                     metrics[f"valid/{key}/accuracy-{value}"] = accuracy
 
             iterator.set_postfix(metrics)
-            self.logger.log({"epoch": epoch_idx, **metrics})
+            if not teacher:
+                self.logger.log({"epoch": epoch_idx, **metrics})
         return metrics
 
     def fit(self):
         self.model.to("cuda")
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
-            filter(lambda p: p.requires_grad, self.model.parameters()), #一点加速 27iter/s -> 32iter/s
-            # self.model.parameters(),
+            # filter(lambda p: p.requires_grad, self.model.parameters()), #一点加速 27iter/s -> 32iter/s
+            self.model.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
         )
@@ -345,7 +355,13 @@ class Trainer:
 
         print("Testing the raw model in the first epoch:")
         self.test(-1)
-        print("Now training...")
+
+        if self.teacher_model is not None:
+            print("\nTesting the teacher model in the first epoch:")
+            self.teacher_model.to("cuda")
+            self.test(-1, teacher=True)
+
+        print("\nNow training...")
 
         for epoch_idx in range(self.max_epochs):
             if self.teacher_model is not None:
