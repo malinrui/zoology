@@ -38,7 +38,7 @@ d_model = 128
 
 configs = []
 
-for lr in [0.0021544]:
+for lr in np.logspace(-4, -2, 4):
     config = TrainConfig(
         max_epochs=64,
         data=DataConfig(
@@ -84,14 +84,16 @@ for lr in [0.0021544]:
         learning_rate=lr,
         run_id=f"TransformerBlock_lr_{lr:.5f}_d_{d_model}_kv_{num_kv_pairs}_seq_{input_seq_len}",
 
-        load_from_pretrained_path = "trained_models/TransformerBlock_lr_0.00046_d_128_kv_16_seq_256.pth",
+        # load_from_pretrained_path = "trained_models/TransformerBlock_lr_0.00046_d_128_kv_16_seq_256.pth",
         # save_model = True,
-
+        #
         mix_with_mamba = True,
-        mamba_layers = [0, 1, 2, 3],
-        init_from_attention_weights = True,
+        mamba_layers = [0, 1, 2],
+        # init_from_attention_weights = True,
+        #
+        # freeze_attn = True,
 
-        freeze_attn = True,
+        # fake_mamba = True,
     )
 
     configs.append(config)

@@ -601,3 +601,11 @@ class AnotherMamba(nn.Module):
         out = self.out_proj(y)
 
         return out.unsqueeze(1), conv_state, ssm_state
+
+class FakeMamba(nn.Module):
+    def __init__(self):
+        super(FakeMamba, self).__init__()
+        self.identity = nn.Identity()
+
+    def forward(self, x):
+        return self.identity(x)

@@ -14,7 +14,7 @@ from einops import rearrange
 
 from zoology.data.utils import prepare_data
 from zoology.config import TrainConfig
-from zoology.mixers.mamba import Mamba, AnotherMamba
+from zoology.mixers.mamba import Mamba, AnotherMamba, FakeMamba
 from zoology.model import LanguageModel
 from zoology.logger import WandbLogger
 from zoology.utils import set_determinism
@@ -39,6 +39,7 @@ class Trainer:
         mamba_layers: List[int] = None,
         init_from_attention_weights: bool = False,
         freeze_attn: bool = False,
+        fake_mamba: bool = False,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -132,6 +133,13 @@ class Trainer:
                     # print(name)
                     if f"sequence_mixer" not in name:
                         param.requires_grad = False
+
+            if fake_mamba:
+                for layer_idx in mamba_layers:
+                    layer_encoder = FakeMamba()
+                    self.model.backbone.layers[layer_idx].sequence_mixer = layer_encoder
+                print("\n%%%%%%%%%%%%%%%%%%%%% OOPS! It's Fake Mamba(nn.Identity()) %%%%%%%%%%%%%%%%%%%%%\n")
+                print("Faked model NOW:", self.model)
 
 
 
@@ -319,6 +327,7 @@ def train(config: TrainConfig):
         mamba_layers=config.mamba_layers,
         init_from_attention_weights=config.init_from_attention_weights,
         freeze_attn=config.freeze_attn,
+        fake_mamba=config.fake_mamba,
     )
     task.fit()
 

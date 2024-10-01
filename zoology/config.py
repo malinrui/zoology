@@ -149,3 +149,4 @@ class TrainConfig(BaseConfig):
     init_from_attention_weights: bool = False
 
     freeze_attn: bool = False
+    fake_mamba: bool = False
