@@ -19,6 +19,8 @@ from zoology.model import LanguageModel
 from zoology.logger import WandbLogger
 from zoology.utils import set_determinism
 
+from torch.nn import functional as F
+
 
 class Trainer:
     def __init__(
@@ -40,6 +42,9 @@ class Trainer:
         init_from_attention_weights: bool = False,
         freeze_attn: bool = False,
         fake_mamba: bool = False,
+
+        teacher_model: LanguageModel = None,
+        teacher_model_path: str = None,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -53,6 +58,8 @@ class Trainer:
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.slice_keys = slice_keys
+
+        self.teacher_model = teacher_model
 
         if load_from_pretrained_path is not None:
             self.model.load_state_dict(torch.load(load_from_pretrained_path))
@@ -141,8 +148,93 @@ class Trainer:
                 print("\n%%%%%%%%%%%%%%%%%%%%% OOPS! It's Fake Mamba(nn.Identity()) %%%%%%%%%%%%%%%%%%%%%\n")
                 print("Faked model NOW:", self.model)
 
+        if teacher_model is not None:
+            self.teacher_model.load_state_dict(torch.load(teacher_model_path))
+            for param in self.teacher_model.parameters():
+                param.requires_grad = False
+            self.teacher_model.to("cuda")
+
+            print(f"\n******************* Teacher Model loaded from {teacher_model_path} *******************\n")
 
 
+    def train_epoch_with_teacher(self, epoch_idx: int):
+        self.model.train()
+        self.teacher_model.eval()
+
+        iterator = tqdm(
+            self.train_dataloader,
+            total=len(self.train_dataloader),
+            desc=f"Train Epoch {epoch_idx}/{self.max_epochs}",
+        )
+
+        for inputs, true_target, slices in iterator:
+            inputs, true_target = inputs.to(self.device), true_target.to(self.device)
+            self.optimizer.zero_grad()
+
+            # forward
+            student_logits = self.model(inputs)
+
+            with torch.no_grad():
+                teacher_logits = self.teacher_model(inputs)
+
+            teacher_ce_loss = self.loss_fn(
+                rearrange(student_logits, "... c -> (...) c"), true_target.flatten()
+            )
+
+            # 选择teacher的logits中最大者作为target，直接使target.shape [64, 256, 512] - >[64, 256]
+            targets = torch.argmax(teacher_logits, dim=-1)
+
+            # print('targets shape:', targets.shape)
+
+            main_loss = self.loss_fn(
+                rearrange(student_logits, "... c -> (...) c"), targets.flatten()
+            )
+
+
+
+            targets = F.softmax(teacher_logits, dim=-1)
+            targets = targets.to(self.device)
+
+            kl_loss = F.kl_div(F.log_softmax(
+                student_logits, dim=-1), targets, reduction='batchmean')
+
+            # print('student_logits shape:', student_logits.shape)
+            # print('teacher_logits shape:', teacher_logits.shape)
+            # print('targets shape:', targets.shape)
+            # print('target flatten shape:', targets.flatten().shape)
+
+            true_target_loss = self.loss_fn(
+                rearrange(student_logits, "... c -> (...) c"), true_target.flatten()
+            )
+
+            # collect auxiliary losses
+            auxiliary_loss = []
+
+            def get_auxiliary_loss(module):
+                if hasattr(module, "get_auxiliary_loss"):
+                    auxiliary_loss.append(module.get_auxiliary_loss())
+
+            self.model.apply(get_auxiliary_loss)
+            auxiliary_loss = sum(auxiliary_loss)
+
+            loss = 0.1 * kl_loss + 1 * (main_loss + auxiliary_loss)
+
+            loss.backward()
+            self.optimizer.step()
+
+            # logging and printing
+            iterator.set_postfix({"loss": loss.item(), 'true_target_loss': true_target_loss.item()})
+            self.logger.log(
+                {
+                    "train/loss": loss,
+                    "train/main_loss": main_loss,
+                    "train/auxiliary_loss": auxiliary_loss,
+                    "train/kl_loss": kl_loss,
+                    "train/teacher_ce_loss": teacher_ce_loss,
+                    "train/true_target_loss": true_target_loss,
+                    "epoch": epoch_idx,
+                }
+            )
 
     def train_epoch(self, epoch_idx: int):
         self.model.train()
@@ -256,7 +348,10 @@ class Trainer:
         print("Now training...")
 
         for epoch_idx in range(self.max_epochs):
-            self.train_epoch(epoch_idx)
+            if self.teacher_model is not None:
+                self.train_epoch_with_teacher(epoch_idx)
+            else:
+                self.train_epoch(epoch_idx)
             metrics = self.test(epoch_idx)
 
             # early stopping
@@ -328,6 +423,9 @@ def train(config: TrainConfig):
         init_from_attention_weights=config.init_from_attention_weights,
         freeze_attn=config.freeze_attn,
         fake_mamba=config.fake_mamba,
+
+        teacher_model=LanguageModel(config=config.model) if config.teacher_model_path is not None else None,
+        teacher_model_path=config.teacher_model_path,
     )
     task.fit()
 

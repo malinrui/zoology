@@ -150,3 +150,5 @@ class TrainConfig(BaseConfig):
 
     freeze_attn: bool = False
     fake_mamba: bool = False
+
+    teacher_model_path: str = None
