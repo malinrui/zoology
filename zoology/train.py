@@ -344,8 +344,8 @@ class Trainer:
         self.model.to("cuda")
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
-            # filter(lambda p: p.requires_grad, self.model.parameters()), #一点加速 27iter/s -> 32iter/s
-            self.model.parameters(),
+            filter(lambda p: p.requires_grad, self.model.parameters()), #一点加速 27iter/s -> 32iter/s
+            # self.model.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
         )
