@@ -33,26 +33,23 @@ input_seq_len = 256
 num_kv_pairs = 16
 d_model = 128
 
-# lr = 0.00046416 # for attn
-# lr = 0.0021544 # for mamba
-
 configs = []
 
-for lr in [0.0021544, 0.0021544]:
+for lr in [0.0021544]:
     config = TrainConfig(
         max_epochs=64,
         data=DataConfig(
             train_configs=[MQARConfig(
                 num_examples=20_000,
                 vocab_size=512,
-                input_seq_len=input_seq_len,  # 难度
-                num_kv_pairs=num_kv_pairs  # 难度
+                input_seq_len=input_seq_len,
+                num_kv_pairs=num_kv_pairs
             )],
             test_configs=[MQARConfig(
                 num_examples=1_000,
                 vocab_size=512,
-                input_seq_len=input_seq_len,  # 难度
-                num_kv_pairs=num_kv_pairs  # 难度
+                input_seq_len=input_seq_len,
+                num_kv_pairs=num_kv_pairs
             )],
             batch_size=64
         ),
@@ -78,13 +75,14 @@ for lr in [0.0021544, 0.0021544]:
             n_layers=4,
         ),
         logger=LoggerConfig(
-            project_name="zoo-3",
-            entity="udem-malr",
+            project_name="",
+            entity="",
         ),
         learning_rate=lr,
-        run_id=f"TransformerBlock_lr_{lr:.5f}_d_{d_model}_kv_{num_kv_pairs}_seq_{input_seq_len}",
+        # run_id=f"TransformerBlock_lr_{lr:.5f}_d_{d_model}_kv_{num_kv_pairs}_seq_{input_seq_len}",
+        run_id = 'MMMM-16',
 
-        # load_from_pretrained_path = "trained_models/TransformerBlock_lr_0.00046_d_128_kv_16_seq_256.pth",
+        # load_from_pretrained_path = "trained_models/AAAA-32.pth",
         # save_model = True,
         #
         mix_with_mamba = True,

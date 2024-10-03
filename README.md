@@ -13,6 +13,51 @@ Zoology provides machine learning researchers with a simple playground for under
 
 ---
 
+## Linrui's reproduction notes
+
+### Environment: 
+
+```bash
+python 3.10.12
+CUDA 11.8
+torch 2.4.1+cu118
+mamba-ssm 2.2.2
+causal-conv1d 1.4.0
+```
+Experiments are conducted on a single RTX 3070 GPU, on WSL.
+
+### Added features (mostly derived from the MambaInLlama paper):
+1. Added hybrid mode for the Mamba/Transformer model.
+2. Added QKV initialization for the Mamba model.
+3. Added teacher-student training for the Mamba model.
+4. Added fake Mamba model for ablation study.
+
+go to 'config.py' to see the added features, and go to 'zoology/experiments/examples/basic3.py' to see example usage.
+```python
+
+load_from_pretrained_path: str = None
+
+mix_with_mamba: bool = False
+mamba_layers: List[int] = None
+init_from_attention_weights: bool = False
+
+freeze_attn: bool = False
+fake_mamba: bool = False
+
+teacher_model_path: str = None
+
+```
+
+to run the experiments, use the following command:
+```bash
+python -m zoology.launch zoology/experiments/examples/basic3.py
+```
+
+below are original README.md
+
+
+---
+
 *Why did we make Zoology?* In our research on efficient language models, synthetic tasks have been crucial for understanding and debugging issues before scaling up to expensive pretraining runs. So, we're releasing the code we've used alongside instructions for replicating a lot of our experiments and their WandB logs.  Simplicity is our main design goal: limited dependencies, architecture implementations that are easy to understand, and a straightforward process for adding new synthetic tasks. 
 
 *Is Zoology a good fit for your use case?* If you are looking to actually train a large machine learning model, Zoology's training harness (which is optimized for simplicity) is certainly not a good fit. For our language model research, we've found the [GPT-NeoX](https://github.com/EleutherAI/gpt-neox) useful for this. That being said, you might still want to use some of Zoology's layer implementations or maybe even mix the synthetic tasks into your training distribution. 
