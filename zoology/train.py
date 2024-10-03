@@ -68,9 +68,6 @@ class Trainer:
         if mix_with_mamba:
             print("******************* Mixing with Mamba *******************")
             for layer_idx in mamba_layers:
-                # layer_encoder = Mamba(
-                #     128
-                # )
                 layer_encoder = AnotherMamba(
                     128,
                     128,
@@ -79,18 +76,6 @@ class Trainer:
 
                 if init_from_attention_weights:
                     attn_layer = self.model.backbone.layers[layer_idx].sequence_mixer
-                    # dtype = attn_layer.mlp[0].weight.dtype
-
-                    # layer_encoder.mlp.load_state_dict(
-                    #     attn_layer.mlp.state_dict()
-                    # )
-                    # layer_encoder.input_layernorm.load_state_dict(
-                    #     attn_layer.input_layernorm.state_dict()
-                    # )
-                    # layer_encoder.post_attention_layernorm.load_state_dict(
-                    #     attn_layer.post_attention_layernorm.state_dict()
-                    # )
-
                     print("attn_layer.Wqkv.state_dict().shape:", attn_layer.Wqkv.state_dict()['weight'].shape)
                     layer_encoder.in_proj_x.load_state_dict(
                         {
@@ -101,13 +86,11 @@ class Trainer:
                     layer_encoder.B_proj.load_state_dict(
                         {
                             'weight': attn_layer.Wqkv.state_dict()['weight'][128:2*128, :],
-                            # 'bias': attn_layer.Wqkv.state_dict()['bias'][128:2*128],
                         }
                     )
                     layer_encoder.C_proj.load_state_dict(
                         {
                             'weight': attn_layer.Wqkv.state_dict()['weight'][0:128, :],
-                            # 'bias': attn_layer.Wqkv.state_dict()['bias'][0:128],
                         }
                     )
                     layer_encoder.out_proj.load_state_dict(
@@ -115,10 +98,7 @@ class Trainer:
                     )
 
                     print('@@@@@@@layer ' + str(layer_idx) + ' init_from_attention_weights!@@@@@@@')
-                    # # keep dtype to be the same
-                    # layer_encoder.mlp = mamba_encoder.mlp.to(dtype)
-                    # layer_encoder.input_layernorm = mamba_encoder.input_layernorm.to(dtype)
-                    # layer_encoder.post_attention_layernorm = mamba_encoder.post_attention_layernorm.to(dtype)
+
 
                 self.model.backbone.layers[layer_idx].sequence_mixer = layer_encoder
             # self.model.backbone.layers[0].sequence_mixer = Mamba(128)
@@ -190,21 +170,12 @@ class Trainer:
                 rearrange(student_logits, "... c -> (...) c"), pseudo_targets.flatten()
             )
 
-
-
-            # targets = F.softmax(teacher_logits, dim=-1)
-            # targets = targets.to(self.device)
-
             kl_loss = F.kl_div(
                 F.log_softmax(student_logits, dim=-1),
                 F.softmax(teacher_logits, dim=-1),
                 reduction='batchmean'
             )
 
-            # print('student_logits shape:', student_logits.shape)
-            # print('teacher_logits shape:', teacher_logits.shape)
-            # print('targets shape:', targets.shape)
-            # print('target flatten shape:', targets.flatten().shape)
 
             true_target_loss = self.loss_fn(
                 rearrange(student_logits, "... c -> (...) c"), true_target.flatten()
